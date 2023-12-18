@@ -124,6 +124,37 @@ namespace Tqdev\PhpCrudApi\Middleware {
             return false;
         }
 
+        public function checkPermission($operation, $permission)
+        {
+            $binary = strrev(decbin($permission));
+
+            for ($i=0; $i < 4 - strlen($binary); $i++) { 
+                
+                $binary = $binary.'0';
+            }
+
+
+            if($operation == 'read' || $operation == 'list')
+            {
+                if($binary[0] == '1' ) {return true;}
+            }
+            else if ($operation == 'create')
+            {
+                if($binary[1] == '1' ) {return true;}
+            }
+            else if ($operation == 'update')
+            {
+                if($binary[2] == '1' ) {return true;}
+            }
+            else if ($operation == 'delete')
+            {
+                if($binary[3] == '1' ) {return true;}
+            }
+
+            return false;
+
+        }
+
 
         public function operationPermitted($group, $tableNames, $operation)
         {   
@@ -131,7 +162,7 @@ namespace Tqdev\PhpCrudApi\Middleware {
             $columnOrdering = $this->ordering->getDefaultColumnOrdering($table);
             $columnNames = $table->getColumnNames();
             $condition = new NoCondition();
-            $permission = 0;
+            $permission = false;
             $acl = $this->db->selectAll($table, $columnNames, $condition, $columnOrdering, 0, -1);
 
             foreach ($acl as $rule)
@@ -140,52 +171,35 @@ namespace Tqdev\PhpCrudApi\Middleware {
 
                 if(in_array($rule['group'],$group) && in_array($rule['table'], $tableNames))
                 {
-                    if($rule['permission']>$permission)
+                    if($this->checkPermission($operation, $rule['permission']))
                     {
-                        $permission = $rule['permission'];
+                        return true;
                     }
                 }
 
                 if($rule['group']=='all' && in_array($rule['table'], $tableNames))
                 {
-                     if($rule['permission']>$permission)
+                     if($this->checkPermission($operation, $rule['permission']))
                     {
-                        $permission = $rule['permission'];
+                        return true;
                     }
                 }
 
                 if(in_array($rule['group'],$group) && $rule['table']=='all')
                 {
-                     if($rule['permission']>$permission)
+                     if($this->checkPermission($operation, $rule['permission']))
                     {
-                        $permission = $rule['permission'];
+                        return true;
                     }
                 }
 
                 if($rule['group']=='all' && $rule['table']=='all')
                 {
-                     if($rule['permission']>$permission)
+                     if($this->checkPermission($operation, $rule['permission']))
                     {
-                        $permission = $rule['permission'];
+                        return true;
                     }
                 }
-            }
-
-            if($operation == 'read' || $operation == 'list')
-            {
-                if($permission >= 1 ) {return true;}
-            }
-            else if ($operation == 'create')
-            {
-                if($permission >= 2 ) {return true;}
-            }
-            else if ($operation == 'update')
-            {
-                if($permission >= 4 ) {return true;}
-            }
-            else if ($operation == 'delete')
-            {
-                if($permission >= 8 ) {return true;}
             }
 
             return false;
